@@ -1,0 +1,4 @@
+*.zip
+dnscrypt-magisk/
+dnscrypt-proxy/
+libsodium/

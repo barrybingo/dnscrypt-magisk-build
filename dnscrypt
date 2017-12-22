@@ -1,0 +1,58 @@
+#!/system/bin/sh
+
+PID_FILE=/data/local/tmp/dnscrypt-proxy.pid
+
+if [ "x${1}" = "xenable" -o "x${1}" = "xENABLE" ]; then
+    echo "Enabling dnscrypt-proxy..."
+
+    kill $(cat $PID_FILE)
+
+    while :; do
+        # check first server
+        RESOLVER_NAME=dnscrypt.org-fr
+        dnscrypt-proxy \
+        --resolver-name="$RESOLVER_NAME" \
+        --resolvers-list=/system/etc/dnscrypt-proxy/dnscrypt-resolvers.csv \
+        --test=700
+        case "$?" in
+                0 ) break;;
+        esac
+
+        # check second server (servers go down pretty often)
+        RESOLVER_NAME=random
+        dnscrypt-proxy \
+        --resolver-name="$RESOLVER_NAME" \
+        --resolvers-list=/system/etc/dnscrypt-proxy/dnscrypt-resolvers.csv \
+        --test=700
+        case "$?" in
+                0 ) break;;
+        esac
+
+        sleep 5
+    done
+
+    dnscrypt-proxy \
+        --daemonize \
+        --pidfile=$PID_FILE \
+        --resolver-name="$RESOLVER_NAME" \
+        --resolvers-list=/system/etc/dnscrypt-proxy/dnscrypt-resolvers.csv && \
+    iptables -t nat -A OUTPUT -p udp --dport 53 -j DNAT --to-destination 127.0.0.1 && \
+    iptables -t nat -A OUTPUT -p tcp --dport 53 -j DNAT --to-destination 127.0.0.1
+    echo "Done"
+    exit
+elif [ "x${1}" = "xdisable" -o "x${1}" = "xDISABLE" ]; then
+    echo "Disabling dnscrypt-proxy..."
+    iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination 127.0.0.1
+    iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination 127.0.0.1
+    kill $(cat $PID_FILE)
+    echo "Done"
+    exit
+else
+    echo "This script allows you to enable or"
+    echo "disable dnscrypt-proxy."
+    echo
+    echo "Usage:"
+    echo "enable    -    Enable dnscrypt"
+    echo "disable   -    Disable dnscrypt"
+    echo
+fi
